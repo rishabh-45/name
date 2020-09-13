@@ -15,13 +15,12 @@ class Notes(BASE):
         self.keyword = keyword
         self.reply = reply
 
-
 Notes.__table__.create(checkfirst=True)
 
 
 def get_notes(chat_id):
     try:
-        return SESSION.query(Notes).filter(Notes.chat_id == str(chat_id)).all()
+        return SESSION.query(Notes).filter(Notes.chat_id.in_([str(chat_id), "universal"])).all()
     finally:
         SESSION.close()
 
@@ -32,15 +31,15 @@ def add_note(chat_id, keyword, reply):
         adder.reply = reply
     else:
         adder = Notes(str(chat_id), keyword, reply)
-    SESSION.add(adder)
+        SESSION.add(adder)
     SESSION.commit()
 
 
 def rm_note(chat_id, keyword):
     note = SESSION.query(Notes).filter(
-        Notes.chat_id == str(chat_id), Notes.keyword == keyword)
+        Notes.chat_id.in_([str(chat_id), "universal"]), Notes.keyword == keyword)
     if note:
-        note.delete()
+        note.delete(synchronize_session='fetch')
         SESSION.commit()
 
 

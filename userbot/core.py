@@ -17,6 +17,12 @@ DELETE_TIMEOUT = 5
 if not os.path.exists(ENV.DOWNLOAD_DIRECTORY):
     os.mkdir(ENV.DOWNLOAD_DIRECTORY)
 
+repo_link = os.environ.get("GITHUB_REPO_LINK", "https://github.com/justaprudev/The-TG-Bot v3")
+REPO = repo_link.split()[0]
+try: 
+    BRANCH = repo_link.split()[1]
+except: 
+    BRANCH = "v3"
 
 @client.on(events(pattern="reload (?P<shortname>\w+)$"))
 async def reload_module(event):
@@ -87,7 +93,11 @@ async def share_module(event):
     if event.fwd_from:
         return
     mone = await event.edit("Searching for required file..")
+    reply = await event.get_reply_message()
     input_str = event.pattern_match.group(1)
+    url = f"{REPO}/blob/{BRANCH}/modules/{input_str}.py"
+    caption = f"Check out `{input_str}.py` at --> [GitHub]({url})"
+    
     module = f"modules/{input_str}.py"
     if os.path.exists(module):
         start = datetime.now()
@@ -96,9 +106,10 @@ async def share_module(event):
             event.chat_id,
             module,
             force_document=True,
+            caption=caption,
             supports_streaming=False,
             allow_cache=False,
-            reply_to=event.message.id,
+            reply_to=reply,
             progress_callback=lambda d, t: asyncio.get_event_loop().create_task(
                 util.progress(d, t, mone, c_time, "Sharing module..")
             )
@@ -108,8 +119,8 @@ async def share_module(event):
         await mone.edit(f"Uploaded {input_str} in {ms} seconds.")
     else:
         await mone.edit("404: Module not found")
-        await asyncio.sleep(2)
-        await mone.delete()
+    await asyncio.sleep(2)
+    await mone.delete()
 
 
 @client.on(events(pattern="help ?(.*)", allow_sudo=True))
@@ -119,15 +130,15 @@ async def help(event):
     key = event.pattern_match.group(1)
     modcount = 1
     if not key:
-        msg = "The-TG-Bot v3 Modules:"
+        msg = "**The-TG-Bot v3 Modules:**"
         title = ""
         for key in sorted(ENV.HELPER):
-            new_title = f"\n\n{key[0].upper()}\n\n"
+            new_title = f"\n\n**{key[0].upper()}**\n"
             if new_title == title:
                 title = "\n"
             else:
                 title = new_title
-            msg += f"{title}~ {key}"
+            msg += f"{title}• {key}"
             title = new_title
             modcount += 1
         msg += f"\n\nNumber of modules: **{modcount}**\nSend .help <module_name> to get help regarding a module."
@@ -142,16 +153,16 @@ async def help(event):
         await event.edit(msg)
 
 
-@client.on(events(pattern="alive ?(.*)", allow_sudo=True))
+@client.on(events(pattern="about ?(.*)", allow_sudo=True))
 async def alive(event):
     if event.fwd_from:
         return
-    await event.edit("**// The-TG-Bot v3 is running //**\n**// Fetching userbot information //**")
+    await event.edit("// **The-TG-Bot v3 is running** //\n> `Fetching userbot information..`")
     uname = platform.uname()
-    username = f"\nUser: `@{me.username}\n"
+    username = f"\nUser: [{me.first_name}](tg://user?id={me.id})\n"
     memory = psutil.virtual_memory()
     specs = f"`System: {uname.system}\nRelease: {uname.release}\nVersion: {uname.version}\nProcessor: {uname.processor}\nMemory [RAM]: {get_size(memory.total)}`"
-    help_string = f"**// The-TG-Bot v3 is running //**\n\n**General Info:**\n`Build Version: {build} {username}`Github Repository: `{ENV.GITHUB_REPO_LINK}\n\n**System Specifications:**\n{specs}\n```Python: {sys.version}```\n```Telethon: {__version__}```\n\n**Contact developer:** [Priyam Kalra](https://t.me/justaprudev) \n**Update channel:** [Join](https://t.me/The_TG_Bot) \n**Support group:** [Join](https://t.me/The_TG_Bot_Support)"
+    help_string = f"**The-TG-Bot v3**\n\n**General Info:**\nBuild Version: `{build}` {username}Source Code: [GitHub](https://justaprudev.github.io/The-TG-Bot)\n\n**System Specifications:**\n{specs}\n`Python: {sys.version}`\n`Telethon: {__version__}`\n\n**Contact developer:** [Priyam Kalra](https://justaprudev.github.io) \n**Update channel:** [Join](https://t.me/The_TG_Bot) \n**Support group:** [Join](https://t.me/The_TG_Bot_Support)"
     await client.send_file(
         event.chat_id,
         caption=help_string,
@@ -159,6 +170,17 @@ async def alive(event):
         force_document=False,
     )
     await event.delete()
+
+
+@client.on(events(pattern="alive ?(.*)", allow_sudo=True))
+async def alive(event):
+    if event.fwd_from:
+        return
+    botuser = f"[{me.first_name}](tg://user?id={me.id})"
+    alive = f"// **The-TG-Bot is running** //\n\n**>** User: {botuser}\n**>** Repository: [GitHub]({ENV.GITHUB_REPO_LINK})"
+    await event.edit("// **The-TG-Bot is running** //")
+    await asyncio.sleep(1)
+    await event.edit(alive)
 
 
 @client.on(events(pattern="restart ?(.*)", allow_sudo=True))
@@ -171,8 +193,8 @@ async def _restart(message):
         heroku = heroku3.from_key(ENV.HEROKU_API_KEY)
         app = heroku.apps()[ENV.TG_APP_NAME]
         app.restart()
-        return await message.edit("```The-TG-Bot v3 has been updated and the heroku app has been restarted, it should be back online in a few seconds.```")
-    await message.edit("```The-TG-Bot v3 has been restarted.\nTry .alive or .ping to check if its alive.```")
+        return await message.edit("`The-TG-Bot v3 has been updated and the heroku app has been restarted, it should be back online in a few seconds.`")
+    await message.edit("`The-TG-Bot v3 has been restarted.\nTry .alive or .ping to check if its alive.`")
     client.sync(restart)  # await restart() random crash workaround
 
 
@@ -191,29 +213,31 @@ def get_size(bytes, suffix="B"):
 
 ENV.HELPER.update({
     "core": "\
-```.load <as_a_reply_to_a_module_file>```\
+`.load <as_a_reply_to_a_module_file>`\
 \nUsage: Load a specified module.\
-\n\n```.reload <module_name>```\
+\n\n`.reload <module_name>`\
 \nUsage: Reload any module that was unloaded.\
-\n\n```.unload <module_name>```\
+\n\n`.unload <module_name>`\
 \nUsage: Unload any loaded module.\
-\n\n```.alive```\
+\n\n`.about`\
 \nUsage: Returns userbot's system stats and some general information.\
-\n\n```.help <optional_module_name>```\
+\n\n`.alive`\
+\nUsage: Checks if userbot is working.\
+\n\n`.help <optional_module_name>`\
 \nUsage: Returns help strings for various modules of this userbot.\
-\n\n```.share <module_name>```\
+\n\n`.share <module_name>`\
 \nUsage: Share any loaded module.\
-\n\n```.restart```\
+\n\n`.restart`\
 \nUsage: Restart the telegram client.\
-\n```.restart [-h/-heroku]```\
+\n`.restart [-h/-heroku]`\
 \nUsage: Restart the heroku app and update the bot to the latest version.\
 \n\n**Requirements for bot updater:**\
-**`HEROKU_API_KEY` ENV variable is mandatory:**\
-\nTo get a valid API key, goto https://dashboard.heroku.com/account\
-\nThen open API key tab..\
-\nThen click on **REVEAL** button and you will see your **HEROKU API key**\
-\nCopy and paste that in ENV variable `HEROKU_API_KEY`\
-\n**`TG_APP_NAME` ENV variable is also mandatory:**\
-\nSimply copy and paste the bot app name in ENV variable TG_APP_NAME\
+\n\n`HEROKU_API_KEY` **ENV variable is mandatory:**\
+\n• To get a valid API key, goto https://dashboard.heroku.com/account\
+\n• Then open API key tab\
+\n• Then click on **REVEAL** button and you will see your HEROKU API key\
+\n• Copy and paste that in ENV variable `HEROKU_API_KEY`\
+\n\n`TG_APP_NAME` **ENV variable is also mandatory:**\
+\nSimply copy and paste the bot app name in ENV variable `TG_APP_NAME`\
 "
 })

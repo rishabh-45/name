@@ -4,7 +4,6 @@
 # Syntax (.save <notename>, .get <notename>, .clear <notename>, .clearall)
 
 from modules.sql.notes_sql import get_notes, rm_note, add_note, rm_all_notes
-import asyncio
 import time
 
 
@@ -33,7 +32,7 @@ async def clear(clr):
     status = f"**Note {notename} not found.**"
     if notename in notelist:
         rm_note(clr.chat_id, notename)
-        status = f"**Note** ```{notename}``` **cleared successfully**"
+        status = f"**Note** `{notename}` **cleared successfully**"
     await clr.edit(status)
 
 
@@ -45,10 +44,14 @@ async def save(fltr):
     rep_msg = await fltr.get_reply_message()
     if rep_msg and notename:
         string = rep_msg.text
-        add_note(str(fltr.chat_id), notename, string)
-        message = f"**Note saved successfully.**\n**Use** ```.get {notename}``` **to get it.**"
+        if notename.endswith("-u"):
+            notename = notename.replace(" -u", "").replace("-u", "")
+            add_note("universal", notename, string)
+        else: 
+            add_note(str(fltr.chat_id), notename, string)
+        message = f"**Note saved successfully.**\n**Use** `.get {notename}` **to get it.**"
     else:
-        message = f"**Provide a valid note name!**"
+        message = f"**Reply to something to save it!**"
     await fltr.edit(message)
 
 
@@ -63,7 +66,7 @@ async def get(getnt):
             await getnt.reply(note.reply)
             await getnt.delete()
         else:
-            await getnt.edit(f"**Note** ```{notename}``` **not found!**")
+            await getnt.edit(f"**Note** `{notename}` **not found!**")
 
 
 @client.on(events(pattern="clearall ?(.*)"))
@@ -72,11 +75,11 @@ async def clearall(prg):
         return
     if not prg.text[0].isalpha():
         await prg.edit("**Purging all notes.**")
-        await prg.edit("**All notes have been purged successfully.**\n```This auto generated message will be deleted in a few seconds...```")
+        await prg.edit("**All notes have been purged successfully.**\n`This auto generated message will be deleted in a few seconds...`")
         rm_all_notes(str(prg.chat_id))
-        time.sleep(5)
+        time.sleep(3)
         await prg.delete()
-        status = f"**Successfully purged all notes at** ```{prg.chat_id}```"
+        status = f"**Successfully purged all notes at** `{prg.chat_id}`"
         await log(status)
 
 
@@ -86,15 +89,16 @@ async def log(text):
 
 ENV.HELPER.update({
     "notes": "\
-```.get <notename>```\
-\nUsage: Gets the note with name <notename>\
-\n\n```.save <notename>``` (as a reply to message to save)\
-\nUsage: Saves target message as a note with the name <notename>\
-\n\n```.clear <notename>```\
-\nUsage: Deletes the note with name <notename>.\
-\n\n```.clearall <notename>```\
-\nUsage: Deletes all the notes saved in the current chat.\
-\n\n```.notes <notename>```\
+`.notes`\
 \nUsage: Prints the list of notes saved in the current chat.\
+\n\n`.get <notename>`\
+\nUsage: Gets the note with name <notename>\
+\n\n`.save <notename>` (as a reply)\
+\nUsage: Saves target message as a note with the name <notename>\
+\nOptional argument: \"`-u`\" (at the end) to save the note universally.\
+\n\n`.clear <notename>`\
+\nUsage: Deletes the note with name <notename>.\
+\n\n`.clearall <notename>`\
+\nUsage: Deletes all the notes saved in the current chat.\
 "
 })

@@ -1,5 +1,5 @@
 # For The-TG-Bot v3
-# Syntax (.approve, .block)
+# Syntax (.approve, .disapprove, .block, .listpms)
 
 import os
 import asyncio
@@ -9,21 +9,23 @@ from telethon.tl import functions, types
 
 client.storage.PM_WARNS = {}
 client.storage.PREV_REPLY_MESSAGE = {}
-BAALAJI_TG_USER_BOT = "```My Master hasn't approved you to PM.```"
-TG_COMPANION_USER_BOT = "```Wait for my masters response.\nDo not spam his pm if you do not want to get blocked.```"
-THETGBOT_USER_BOT_WARN_ZERO = "```Blocked! Thanks for the spam.```"
+BAALAJI_TG_USER_BOT = "`My Master hasn't approved you to PM.`"
+TG_COMPANION_USER_BOT = "`Wait for my masters response.\nDo not spam his pm if you do not want to get blocked.`"
+THETGBOT_USER_BOT_WARN_ZERO = "`Blocked! Thanks for the spam.`"
 THETGBOT_USER_BOT_NO_WARN = "\
-```Bleep blop! This is a bot. Don't fret.\
-\nMy master hasn't approved you to PM.\
-\nPlease wait for my master to look in, he mostly approves PMs.\
-\nAs far as I know, he doesn't usually approve retards though.\
-\nIf you continue sending messages you will be blocked.```\
+`Bleep blop! This is a bot. Don't fret.\
+\nMy master hasn't approved you to PM.`\
+\n__Please wait for my master to look in, he mostly approves PMs.\
+As far as I know, he doesn't usually approve retards though.\
+If you continue sending messages you will be blocked.__\
 "
 
+EXCEPTIONS = [777000, 1017305299, 1109396517]
 
 @client.on(events(outgoing=True, func=lambda e: e.is_private))
 async def auto_approve(event):
-    if "block" in event.text or "disapprove" in event.text:
+    user = await client(functions.users.GetFullUserRequest(int(event.chat_id)))
+    if ("block" in event.text or "disapprove" in event.text or user.user.bot):
         return False
     reason = "auto_approve"
     chat = await event.get_chat()
@@ -35,7 +37,14 @@ async def auto_approve(event):
                 await client.storage.PREV_REPLY_MESSAGE[chat.id].delete()
                 del client.storage.PREV_REPLY_MESSAGE[chat.id]
             approve(chat.id, reason)
+            msg = await client.send_message(
+                      event.chat_id,
+                      f"__Approved {user.user.first_name}, cuz outgoing message__",
+                      silent=True
+                  )
             logger.info("Auto approved user: " + str(chat.id))
+            await asyncio.sleep(2)
+            await msg.delete()
 
 
 @client.on(events(incoming=True, func=lambda e: e.is_private))
@@ -48,7 +57,7 @@ async def monitorpms(event):
         # userbot's should not reply to other userbot's
         # https://core.telegram.org/bots/faq#why-doesn-39t-my-bot-see-messages-from-other-bots
         return False
-    if ENV.ANTI_PM_SPAM and not sender.bot:
+    if (ENV.ANTI_PM_SPAM and not sender.bot and sender.id not in EXCEPTIONS):
         chat = await event.get_chat()
         if not is_approved(chat.id) and chat.id != client.uid:
             logger.info(chat.stringify())
@@ -114,15 +123,19 @@ async def approve_p_m(event):
 async def disapprove_pm(event):
     if event.fwd_from:
         return
-    reason = event.pattern_match.group(1)
-    chat = await event.get_chat()
-    if ENV.ANTI_PM_SPAM:
+    input = event.pattern_match.group(1)
+    if input:
+        id = str(input)
+    else:
         if event.is_private:
-            if is_approved(chat.id):
-                disapprove(chat.id)
-                await event.edit("Disapproved PM.")
-                await asyncio.sleep(3)
-                logger.info("Disapproved user: " + str(chat.id))
+            id = (await event.get_chat()).id
+    if ENV.ANTI_PM_SPAM:
+        if is_approved(id):
+            disapprove(id)
+            await event.edit(f"Disapproved PM from {id}")
+            logger.info("Disapproved user: " + str(id))
+            await asyncio.sleep(1)
+            await event.delete()
 
 
 @client.on(events("listpms?"))
@@ -131,13 +144,20 @@ async def approve_p_m(event):
         return
     await event.edit("Fetching approved PMs list...")
     approved_users = get_all_approved()
-    APPROVED_PMs = "Current Approved PMs\n"
+    APPROVED_PMs = "**Current Approved PMs**\n\n"
     for a_user in approved_users:
-        if a_user.reason:
-            APPROVED_PMs += f"* [{a_user.chat_id}](tg://user?id={a_user.chat_id}) for {a_user.reason}\n"
-        else:
-            APPROVED_PMs += f"* [{a_user.chat_id}](tg://user?id={a_user.chat_id})\n"
-    if len(APPROVED_PMs) > ENV.MAX_MESSAGE_SIZE_LIMIT:
+        id = a_user.chat_id
+        try:
+            user = await client(functions.users.GetFullUserRequest(int(id)))
+            name = user.user.first_name
+        except:
+            name = "~~deleted~~"
+        userid = str(id)
+        if len(userid) < 10:
+            userid = userid + " "*(10 - len(userid))
+        APPROVED_PMs += f"~ `{userid}`` - `{name}\n"
+    
+    if len(APPROVED_PMs) > Config.MAX_MESSAGE_SIZE_LIMIT:
         # fixed by authoritydmc
         out_file_name = "approved_pms.txt"
         output_file_ref = None
@@ -150,7 +170,6 @@ async def approve_p_m(event):
             force_document=True,
             allow_cache=False,
             caption="Current Approved PMs",
-
         )
         await event.delete()
         os.remove(output_file_ref)
@@ -159,13 +178,13 @@ async def approve_p_m(event):
 
 ENV.HELPER.update({
     "pmpermit": "\
-```.approve```\
+`.approve`\
 \nUsage: Approve a user in PMs.\
-\n\n```.block```\
+\n\n`.disapprove`\
+\nUsage: Disapprove a user in PMs.\
+\n\n`.block`\
 \nUsage: Block a user from your PMs.\
-\n\n```.disapprove```\
-\nUsage: Remove a user from your approved PMs list.\
-\n\n```.getpms```\
+\n\n`.listpms`\
 \nUsage: Get approved PMs.\
 "
 })

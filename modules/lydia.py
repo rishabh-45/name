@@ -12,10 +12,12 @@
 
 from coffeehouse.lydia import LydiaAI
 from coffeehouse.api import API
-import asyncio
+
 import io
-from modules.sql.lydia_ai_sql import get_s, get_all_s, add_s, remove_s
+import asyncio
 from time import time
+from telethon.tl.types import PeerUser, PeerChat, PeerChannel
+from modules.sql.lydia_ai_sql import get_s, get_all_s, add_s, remove_s
 
 # Global Variables
 api_key = ""
@@ -26,7 +28,6 @@ if ENV.LYDIA_API is not None:
     api_key = ENV.LYDIA_API
     api_client = API(api_key)
     lydia = LydiaAI(api_client)
-
 
 
 @client.on(events(pattern="(enable|disable|list)ai"))
@@ -52,7 +53,6 @@ async def lydia_disable_enable(event):
         if event.reply_to_msg_id is not None:
             reply_msg = await event.get_reply_message()
             user_id = reply_msg.from_id
-        # await event.edit("Processing...")
         if input_str == "enable":
             session = lydia.create_session()
             logger.info(session)
@@ -64,11 +64,12 @@ async def lydia_disable_enable(event):
         elif input_str == "list":
             lsts = get_all_s()
             if len(lsts) > 0:
-                output_str = "AI enabled users:\n\n"
+                output_str = "**LydiaAI enabled users:**\n\n"
                 for lydia_ai in lsts:
-                    output_str += f"[user](tg://user?id={lydia_ai.user_id}) in chat `{lydia_ai.chat_id}`\n"
+                    output = await entities(lydia_ai.user_id, lydia_ai.chat_id)
+                    output_str += output
             else:
-                output_str = "No Lydia AI enabled users / chats. Start by replying `.enableai` to any user in any chat!"
+                output_str = "No Lydia AI enabled users/chats. Start by replying `.enableai` to any user in any chat!"
             if len(output_str) > ENV.MAX_MESSAGE_SIZE_LIMIT:
                 with io.BytesIO(str.encode(output_str)) as out_file:
                     out_file.name = "lydia_ai.text"
@@ -123,13 +124,38 @@ async def on_new_message(event):
             except Exception as e:
                 logger.info(str(e))
 
+# Functions
+async def entities(user_id, chat_id):
+    firstname = ""
+    chat = ""
+    try:
+        user = await client.get_entity(PeerUser(int(user_id)))
+        firstname = user.first_name
+    except:
+        firstname = "Deleted Account"
+    if chat_id == user_id:
+        output = f"• [{firstname}](tg://user?id={user_id})\n"
+    else:
+        try:
+            chat_entity = await client.get_entity(PeerChat(int(chat_id)))
+            chat = chat_entity.title
+        except:
+            try:
+                channel_entity = await client.get_entity(PeerChannel(int(chat_id)))    
+                chat = channel_entity.title
+            except:
+                chat = "Unknown Chat"
+        output = f"• [{firstname}](tg://user?id={user_id}) in chat '{chat}'\n"
+    return output
+
+
 ENV.HELPER.update({
     "lydia": "\
-```.enableai (as a reply to target user)```\
+`.enableai (as a reply to target user)`\
 \nUsage: Enables LydiaAI for the target user in the current chat.\
-\n\n```.disableai (as a reply to target user)```\
+\n\n`.disableai (as a reply to target user)`\
 \nUsage: Disables LydiaAI for the target user in the current chat.\
-\n\n```.listai```\
+\n\n`.listai`\
 \nUsage: Lists all users on which LydiaAI is enabled.\
 "
 })

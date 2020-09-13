@@ -2,11 +2,6 @@
 # By Priyam Kalra
 # Syntax (.spam <number of msgs> <text>)
 
-from asyncio import wait
-import asyncio
-from time import sleep
-
-
 
 @client.on(events(pattern="spam ?(.*)"))
 async def handler(event):
@@ -23,6 +18,7 @@ async def handler(event):
         text = reply
     if text and count != None:
         for spam in range(int(count)):
+            await event.delete()
             await client.send_message(
                 event.chat_id,
                 text,
@@ -32,8 +28,7 @@ async def handler(event):
             )
     else:
         return await event.edit("This is not how it works..\nUse ```.help spam``` for help.")
-    sleep(2)
-    await event.delete()
+
 
 ENV.HELPER.update({
     "spam": "\
