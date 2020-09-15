@@ -57,11 +57,9 @@ async def twrp(event):
     await event.edit(reply)
 
 
-ENV.HELPER.update({
-    "android": "\
+ENV.HELPER.update({"android": "\
 `.magisk`\
 \nUsage: Get latest Magisk releases\
 \n\n`.twrp <codename>`\
 \nUsage: Get latest twrp download for android device.\
-"
-})
+"})
