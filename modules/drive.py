@@ -28,9 +28,6 @@ CLIENT_ID = ENV.DRIVE_CLIENT_ID
 CLIENT_SECRET = ENV.DRIVE_CLIENT_SECRET
 OAUTH_SCOPE = "https://www.googleapis.com/auth/drive.file"
 REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
-G_DRIVE_F_PARENT_ID = None
-G_DRIVE_DIR_MIME_TYPE = "application/vnd.google-apps.folder"
-TELEGRAPH_LINK = "https://da.gd/drive"
 
 
 @client.on(events(pattern="drive ?(.*)"))
@@ -48,16 +45,16 @@ async def handler(event):
     if not os.path.isdir(ENV.DOWNLOAD_DIRECTORY):
         os.makedirs(ENV.DOWNLOAD_DIRECTORY)
     required_file_name = None
-    start = datetime.now()
     if event.reply_to_msg_id and not input_str:
         reply_message = await event.get_reply_message()
+        start = datetime.now()
         try:
             c_time = time.time()
             downloaded_file_name = await client.download_media(
                 reply_message,
                 ENV.DOWNLOAD_DIRECTORY,
                 progress_callback=lambda d, t: asyncio.get_event_loop().create_task(
-                    progress(d, t, mone, c_time, "trying to download")
+                    progress(d, t, mone, c_time, "**Downloading to Local**\n")
                 )
             )
         except Exception as e:
@@ -71,10 +68,7 @@ async def handler(event):
     elif input_str:
         input_str = input_str.strip()
         if os.path.exists(input_str):
-            end = datetime.now()
-            ms = (end - start).seconds
             required_file_name = input_str
-            # await mone.edit("Found `{}` in {} seconds.".format(input_str, ms))
         else:
             await mone.edit("404: File not found!")
             return False
@@ -87,9 +81,10 @@ async def handler(event):
             storage = await create_token_file(G_DRIVE_TOKEN_FILE, event)
         http = authorize(G_DRIVE_TOKEN_FILE, storage)
         file_name, mime_type = file_ops(required_file_name)
+        folder_name = "The-TG-Bot"
         try:
-            g_drive_link = await upload_file(http, required_file_name, file_name, mime_type, mone, G_DRIVE_F_PARENT_ID)
-            await mone.edit(f"File sucessfully uploaded to Google Drive.\nDownload link: {g_drive_link}")
+            gdrive_link = await upload_file(http, required_file_name, file_name, mime_type, folder_name, mone)
+            await mone.edit(f"File sucessfully uploaded to Google Drive.\nDownload link: {gdrive_link}")
         except Exception as e:
             await mone.edit(f"Oh snap looks like something went wrong:\n{e}")
     else:
@@ -138,21 +133,55 @@ def authorize(token_file, storage):
     http = credentials.authorize(http)
     return http
 
-
-async def upload_file(http, file_path, file_name, mime_type, event, parent_id):
-    # Create Google Drive service instance
+def create_folder(http, folder_name):
     drive_service = build("drive", "v2", http=http, cache_discovery=False)
-    # File body description
+    file_metadata = {
+        'title': folder_name,
+        'mimeType': 'application/vnd.google-apps.folder'
+    }
+    permissions = {
+        "role": "reader",
+        "type": "anyone",
+        "value": None,
+        "withLink": True
+    }
+    folder = drive_service.files().insert(body=file_metadata, fields='id').execute()
+    parent_id = folder.get('id')
+    drive_service.permissions().insert(fileId=parent_id, body=permissions).execute()
+    return parent_id
+
+def get_folder(http, folder_name):
+    drive_service = build("drive", "v2", http=http, cache_discovery=False)
+    page_token = None
+    while True:
+        response = drive_service.files().list(q="mimeType='application/vnd.google-apps.folder'",
+                                              spaces='drive',
+                                              fields='nextPageToken, items(id, title)',
+                                              pageToken=page_token).execute()
+        for folder in response.get('items', []):
+            if folder.get('title') == folder_name:
+                bot_folder = folder.get('id')
+        page_token = response.get('nextPageToken', None)
+        if page_token is None:
+            break
+    try:
+        parent_id = bot_folder
+    except:
+        parent_id = create_folder(http, folder_name)
+    return parent_id
+
+async def upload_file(http, file_path, file_name, mime_type, folder_name, event):
+    drive_service = build("drive", "v2", http=http, cache_discovery=False)
     media_body = MediaFileUpload(file_path, mimetype=mime_type, resumable=True)
+    folder_id = get_folder(http, folder_name)
     body = {
         "title": file_name,
-        "description": "Uploaded using @The_TG_Bot v3",
+        "description": "Uploaded using The-TG-Bot",
         "mimeType": mime_type,
+        "parents": [{"id": folder_id}]
     }
-    if parent_id is not None:
-        body["parents"] = [{"id": parent_id}]
-    # Permissions body description: anyone who has link can upload
-    # Other permissions can be found at https://developers.google.com/drive/v2/reference/permissions
+    # Permissions body description: anyone who has link can view and download
+    # Other permissions: https://developers.google.com/drive/v2/reference/permissions
     permissions = {
         "role": "reader",
         "type": "anyone",
@@ -183,7 +212,6 @@ async def upload_file(http, file_path, file_name, mime_type, event, parent_id):
                     pass
     file_id = response.get("id")
     try:
-        # Insert new permissions
         drive_service.permissions().insert(fileId=file_id, body=permissions).execute()
     except:
         pass
@@ -192,10 +220,11 @@ async def upload_file(http, file_path, file_name, mime_type, event, parent_id):
     download_url = file.get("webContentLink")
     return download_url
 
+
 ENV.HELPER.update({"drive": f"\
-```.drive (as a reply to a file on telegram)```\
+`.drive (as a reply to a file on telegram)`\
 \nUsage: Upload a file on telegram to your google drive.\
-\n\nYou need DRIVE_CLIENT_ID and DRIVE_CLIENT_SECRET env variables for this to work.\
-\nGet them client id and secret from https://console.developers.google.com/\
-\nVisit {TELEGRAPH_LINK} for more information about how to set this up.\
+\n\nYou need `DRIVE_CLIENT_ID` and `DRIVE_CLIENT_SECRET` env variables for this to work.\
+\nGet the client id and secret from https://console.developers.google.com/\
+\n\n[Complete Guide](https://da.gd/drive) to set up drive module.\
 "})

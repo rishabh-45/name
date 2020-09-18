@@ -3,12 +3,11 @@
 # Based on the insult module made by Hackintosh for friendly telegram bot (https://da.gd/RG2hfe)
 # Syntax (.insult <no_of_times_to_insult>)
 
-import asyncio
-import random
 import sys
 import time
+import random
 
-insult_strings = ("Owww ... Such a stupid idiot.",
+insult_strings = ["Owww ... Such a stupid idiot.",
     "Don't drink and type.",
     "I think you should go home or better a mental asylum.",
     "Command not found. Just like your brain.",
@@ -70,7 +69,7 @@ insult_strings = ("Owww ... Such a stupid idiot.",
     "Try to spend one day in a coffin and it will be yours forever.",
     "Hit Uranium with a slow moving neutron in your presence. It will be a worthwhile experience.",
     "You can be the first person to step on sun. Have a try."
-)
+]
 
 adjectives_start = ["salty", "fat", "fucking", "shitty",
                         "stupid", "retarded", "self conscious", "tiny"]
@@ -82,7 +81,7 @@ starts = ["You're a", "You", "Fuck off you", "Actually die you", "Listen up you"
             "What the fuck is wrong with you, you"]
 ends = ["!!!!", "!", ""]
 
-def get_strong_insult():
+def destroy_respect():
     start = random.choice(starts)
     adjective_start = random.choice(adjectives_start)
     adjective_mid = random.choice(adjectives_mid)
@@ -96,48 +95,35 @@ def get_strong_insult():
 async def handler(event):
     if event.fwd_from:
         return
-
-    args = str(event.pattern_match.group(1)).split()
-    insType, n = (0, 0)
-    if not args:
-        insType, n = (1, 1)
-    else:
-        try: 
-            args = list(map(int, args))
-        except Exception as error:
-            await event.edit(error)
-        insType, n = args if len(args) == 2 else (1, args[0])
-    log_insults = ""
-
+    reply = await event.get_reply_message()
+    if not reply:
+        return
+    args = (event.pattern_match.group(1)).split()
+    n = 1
+    str = ""
+    if args:
+        for term in args:
+            try:
+                n = int(term)
+            except:
+                str = term
+    type = "hard" if "hard" in str else "soft"
+    
     for _ in range(n):
-        insult = random.choice(insult_strings) if insType == 1 else get_strong_insult()
-        log_insults += f"```{insult}```\n\n"
-        reply_msg = await event.get_reply_message()
-        if reply_msg:
-            user_id = f"```{reply_msg.from_id}```"
-            noformat_userid = reply_msg.from_id
-        else:
-            user_id = "Unknown user"
-            noformat_userid = "Unknown user"
-        if noformat_userid in ENV.SUDO_USERS:
+        insult = random.choice(insult_strings) if not type == "hard" else destroy_respect()
+        reply = await event.get_reply_message()
+        if reply.from_id in ENV.SUDO_USERS:
             await event.edit("**Wait! WHAT?!\nDid you just try to insult my creator?!?!\nBYE!**")
             sys.exit()
             # probably not needed but meh
             break
         else:
-            await event.edit(insult)
+            await event.edit(f"`{insult}`")
             time.sleep(2)
-            status = f"Insulted [{user_id}] with:\n\n{log_insults}"
-            await log(status)
 
 
-async def log(text):
-    LOGGER = ENV.LOGGER_GROUP
-    await client.send_message(LOGGER, text)
-
-ENV.HELPER.update({
-    "insult": "\
-    ```.insult <type(optional), no. of insults(optional)>```[as a reply to target user]\n[types-> 1. soft insults\t 2. hard insults]\n[default (type, no. of insults) = (1,1)]\
+ENV.HELPER.update({"insult": "\
+`.insult <number>`\
 \nUsage: Insults target user.\
-"
-})
+\n\nOptional argument \"hard\" to destroy the respect of person.\
+"})

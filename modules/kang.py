@@ -33,9 +33,20 @@ async def handler(event):
     if not event.is_reply:
         await event.edit("Reply to a photo/sticker to kang it.")
         return
-    await event.edit("```Using a crack in the fabric of time to kang this sticker...```")
+    await event.edit("`Using a crack in the fabric of time to kang this sticker...`")
     reply_message = await event.get_reply_message()
-    sticker_emoji = "🔥"
+    emoji = "🔥"
+    if is_it_animated_sticker(reply_message) or is_message_image(reply_message):
+        try:
+            list = reply_message.media.document.attributes
+            for item in list:
+                if "DocumentAttributeSticker" in str(item):
+                    if str(item.alt) != "":
+                        sticker_emoji = item.alt
+                    else:
+                        sticker_emoji = emoji
+        except:
+            sticker_emoji = emoji
     pack_id = ""
     input_str = event.pattern_match.group(1)
     if input_str:
@@ -50,8 +61,10 @@ async def handler(event):
             if is_int:
                 pack_id = char
 
-    botuser = await client.get_me()
-    botuser = f"@{botuser.username}"
+    try:
+        botuser = f"@{me.username}"
+    except:
+        botuser = me.first_name
     userid = event.from_id
     if ENV.STICKER_PACK is None:
         if not pack_id:
@@ -66,7 +79,10 @@ async def handler(event):
 
     is_a_s = is_it_animated_sticker(reply_message)
     file_ext_ns_ion = "@The_TG_Bot_Sticker.png"
-    file = await client.download_file(reply_message.media)
+    try:
+        file = await client.download_file(reply_message.media)
+    except:
+        file = await client.download_file(reply_message.media.webpage.document)
     uploaded_sticker = None
     if is_a_s:
         file_ext_ns_ion = "@The_TG_Bot_ANIMATED.tgs"
@@ -131,7 +147,6 @@ async def handler(event):
             if "Sorry" in response.text:
                 await event.edit(f"**FAILED**! @Stickers replied: {response.text}")
                 return
-            await silently_send_message(bot_conv, response)
             await silently_send_message(bot_conv, sticker_emoji)
             await silently_send_message(bot_conv, "/done")
 
@@ -175,7 +190,7 @@ async def handler(event):
                      f"**Emojis In Pack:** {' '.join(pack_emojis)}")
 
 
-@client.on(events("getsticker ?(.*)"))
+@client.on(events("packzip ?(.*)"))
 async def handler(event):
     if event.fwd_from:
         return
@@ -284,9 +299,17 @@ def is_message_image(message):
     if message.media:
         if isinstance(message.media, MessageMediaPhoto):
             return True
-        if message.media.document:
-            if message.media.document.mime_type.split("/")[0] == "image":
-                return True
+        try:
+            if message.media.document:
+                if message.media.document.mime_type.split("/")[0] == "image":
+                    return True
+        except:
+            try:
+                if message.media.webpage:
+                    if message.media.webpage.document.mime_type.split("/")[0] == "image":
+                        return True
+            except:
+                return False    
         return False
     return False
 
@@ -357,10 +380,12 @@ def zipdir(path, ziph):
             os.remove(os.path.join(root, file))
 
 
-ENV.HELPER.update({
-    "kang": "\
-```.kang <optional_emoji> <optional_pack_number>```\
+ENV.HELPER.update({"kang": "\
+`.kang <optional_emoji> <optional_pack_number>`\
 \nUsage: Adds sticker to your own sticker pack!\
 \nTo use a custom kang pack name, set env variable `STICKER_PACK`.\
-"
-})
+\n\n`.packinfo` (as a reply)\
+\nUsage: Get information of a sticker pack\
+\n\n`.packzip` (as a reply)\
+\nUsage: Downloads the sticker pack as zip\
+"})
