@@ -15,7 +15,7 @@ sqlalchemy
 asyncurban
 oauth2client
 google-api-python-client
-httplib2==0.15.0
+httplib2==0.18.0
 pygit
 coffeehouse
 pymongo
